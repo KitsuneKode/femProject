@@ -43,7 +43,7 @@ func (pg *PostgresWorkoutStore) CreateWorkout(workout *Workout) (*Workout, error
 
 	defer tx.Rollback()
 
-	query := `INSERT INTO workout (title, description, duration_minutes, calories_burned)
+	query := `INSERT INTO workouts (title, description, duration_minutes, calories_burned)
 	VALUES ($1, $2, $3, $4)
 	RETURNING id
 	`
@@ -55,7 +55,7 @@ func (pg *PostgresWorkoutStore) CreateWorkout(workout *Workout) (*Workout, error
 
 	for _, entry := range workout.Entries {
 		query := `
-			INSERT INTO workout_entries (workout_id, exercise_name, sets, reps, duration_seconds, weight, notes, order_index)
+			INSERT INTO workouts_entries (workout_id, exercise_name, sets, reps, duration_seconds, weight, notes, order_index)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			RETURNING id
 		`
