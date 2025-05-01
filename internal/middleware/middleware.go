@@ -52,13 +52,8 @@ func (um *UserMiddleware) Authenticate(next http.Handler) http.Handler {
 
 		token := headerParts[1]
 		user, err := um.UserStore.GetUserToken(tokens.ScopeAuth, token)
-		if err != nil {
-			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "invalid token"})
-			return
-		}
-
-		if user == nil {
-			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "token expired"})
+		if err != nil || user == nil {
+			utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "invalid token or token expired"})
 			return
 		}
 

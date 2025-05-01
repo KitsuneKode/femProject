@@ -155,7 +155,7 @@ func (s *PostgresUserStore) GetUserToken(scope string, plainTextPassword string)
 	tokenHash := sha256.Sum256([]byte(plainTextPassword))
 
 	query := `
-		SELECT u.id, u.usernmae, u.email, u.password, u.bio, u.created_at, u.updated_at
+		SELECT u.id, u.username, u.email, u.password_hash, u.bio, u.created_at, u.updated_at
 		FROM users u 
 		INNER JOIN tokens t ON t.user_id = u.id 
 		WHERE t.hash = $1 AND t.scope = $2 and t.expiry > $3
