@@ -1,6 +1,41 @@
 package store
 
-import "database/sql"
+import (
+	"crypto/sha256"
+	"database/sql"
+	"errors"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+type password struct {
+	plainText *string
+	hash      []byte
+}
+
+func (p *password) Set(plainTextPassword string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plainTextPassword), 12)
+	if err != nil {
+		return err
+	}
+	p.plainText = &plainTextPassword
+	p.hash = hash
+	return nil
+}
+
+func (p *password) Matches(plainTextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plainTextPassword))
+	if err != nil {
+		switch {
+		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return true, nil
+}
 
 type User struct {
 	ID           int      `json:"id"`
@@ -12,9 +47,10 @@ type User struct {
 	UpdatedAt    string   `json:"updated_at"`
 }
 
-type password struct {
-	plaintTest *string
-	hash       []byte
+var AnonnymousUser = &User{}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonnymousUser
 }
 
 type PostgresUserStore struct {
@@ -31,6 +67,7 @@ type UserStore interface {
 	CreateUser(*User) error
 	GetUserByUsername(username string) (*User, error)
 	UpdateUser(*User) error
+	GetUserToken(scope string, tokenPlainText string) (*User, error)
 }
 
 func (s *PostgresUserStore) CreateUser(user *User) error {
@@ -43,7 +80,7 @@ func (s *PostgresUserStore) CreateUser(user *User) error {
 	err := s.db.QueryRow(query,
 		user.Username,
 		user.Email,
-		user.PasswordHash,
+		user.PasswordHash.hash,
 		user.Bio,
 	).Scan(
 		&user.ID,
@@ -112,4 +149,38 @@ func (s *PostgresUserStore) UpdateUser(user *User) error {
 	}
 
 	return nil
+}
+
+func (s *PostgresUserStore) GetUserToken(scope string, plainTextPassword string) (*User, error) {
+	tokenHash := sha256.Sum256([]byte(plainTextPassword))
+
+	query := `
+		SELECT u.id, u.usernmae, u.email, u.password, u.bio, u.created_at, u.updated_at
+		FROM users u 
+		INNER JOIN tokens t ON t.user_id = u.id 
+		WHERE t.hash = $1 AND t.scope = $2 and t.expiry > $3
+	`
+
+	user := &User{
+		PasswordHash: password{},
+	}
+	err := s.db.QueryRow(query, tokenHash[:], scope, time.Now()).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash.hash,
+		&user.Bio,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
